@@ -157,3 +157,66 @@ MAX30102_Status_t OFF(I2C_HandleTypeDef *hi2c) {
 
     return MAX30102_OK;
 }
+/*HOW DOES HEART RATE SENSOR WORK
+
+Red and infrared data signals are read by the MAX30102 sensor. These values are a result of the reflected light intensity after the red and infrared LEDs hit a blood vessel
+The reflection intensity will be low during a heart beat since blood volume is higher in the arteries. Higher blood volume leads to slightly darker skin around the finger thus more light
+is absorbed. Since more light is absorbed, less will be reflected. Thus in graphing terms, a trough is reached when the heart beats.
+The opposite is true between heart beats, blood volume is lower leading to a lighter color which absorbs less light and reflects more. In turn a peak is reached.
+Calculating the time between peaks can allow an estimated heart rate to be calculated.
+
+Infrared data is primarily used for heart rate, data sheet states red data is 'critical' for SPo2 which is necessary for temperature sensing
+*/
+
+MAX30102_Status_t GetHeartRate(I2C_HandleTypeDef *hi2c, float *heart_rate, int num_peaks) { // Number of peaks before heart rate calculation necessary on function call
+    uint32_t red_data, ir_data; // red data and infrared data represent the light intensity values of light reflected back into the MAX30102 sensor from these LEDs hitting a persons skin
+                                // the red and infrared data values changed based on pulse
+
+    uint32_t prev_ir_data = 0;
+    uint32_t peak_data_signal = 0;
+
+    uint32_t peak_interval_sum = 0;
+    uint32_t prev_peak_time = 0;
+    uint32_t curr_time = 0;
+
+    int peaks_reached = 0;
+
+    while (1) {
+
+
+        // Ensure ReadFIFO is functioning properly by reading red and infrared data from it.
+        if (MAX30102_ReadFIFO(hi2c, &red_data, &ir_data) != MAX30102_OK) {
+            return MAX30102_ERROR;
+        }
+
+        // Get current time in milliseconds, function exists in all STM32 boards
+        curr_time = HAL_GetTick();
+
+        // Check and update peak value for the max infrared value, only update when an upward trend in infrared data value occurs.
+        if (ir_data > prev_ir_data && ir_data > peak_data_signal) { // Double checks to ensure peak value not updated on random highs
+            peak_data_signal = ir_data;  // Update peak if current value is higher
+        } 
+
+        // Peak value is found, calculates time interval between new peak value and previous peak value
+        else if (ir_data < prev_ir_data && peak_data_signal > 0) {
+            if (peaks_reached > 0) {
+                peak_interval_sum += curr_time - prev_peak_time;
+            }
+
+            prev_peak_time = curr_time;  
+            peak_data_signal = 0;
+            peaks_reached++; 
+        }
+
+        prev_ir_data = ir_data; // Assign current ir data value the previous one. 
+
+        // Calculate heart rate in BPM after every 15 peaks. More peaks = more accurate measurements since the average heart rate is calculated with more interval values
+        if (peaks_reached >= num_peaks) {
+            *heart_rate = (60 * 1000) / (peak_interval_sum / peaks_reached); // Convert average interval time from milliseconds to minutes 
+            peak_interval_sum = 0; 
+            peaks_reached = 0;         
+        }
+    }
+
+    return MAX30102_OK; // Return if loop is working properly
+}

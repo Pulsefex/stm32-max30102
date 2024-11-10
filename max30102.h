@@ -51,5 +51,6 @@ MAX30102_Status_t MAX30102_Init(I2C_HandleTypeDef *hi2c);
 MAX30102_Status_t MAX30102_WriteRegister(I2C_HandleTypeDef *hi2c, uint8_t reg, uint8_t value);
 MAX30102_Status_t MAX30102_ReadRegister(I2C_HandleTypeDef *hi2c, uint8_t reg, uint8_t *value);
 MAX30102_Status_t MAX30102_ReadFIFO(I2C_HandleTypeDef *hi2c, uint32_t *red_data, uint32_t *ir_data);
+MAX30102_Status_t GetHeartRate(I2C_HandleTypeDef *hi2c, float *heart_rate, int num_peaks);
 
 #endif  // __MAX30102_H__
