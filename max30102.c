@@ -169,17 +169,19 @@ Infrared data is primarily used for heart rate, data sheet states red data is 'c
 */
 
 MAX30102_Status_t GetHeartRate(I2C_HandleTypeDef *hi2c, float *heart_rate, int num_peaks) { // Number of peaks before heart rate calculation necessary on function call
+    
     uint32_t red_data, ir_data; // red data and infrared data represent the light intensity values of light reflected back into the MAX30102 sensor from these LEDs hitting a persons skin
                                 // the red and infrared data values changed based on pulse
 
-    uint32_t prev_ir_data = 0;
-    uint32_t peak_data_signal = 0;
+    static uint32_t prev_ir_data = 0;
+    static uint32_t peak_data_signal = 0;
 
-    uint32_t peak_interval_sum = 0;
-    uint32_t prev_peak_time = 0;
+    static uint32_t peak_interval_sum = 0;
+    static uint32_t prev_peak_time = 0;
+    static int peaks_reached = 0;
+    
     uint32_t curr_time = 0;
-
-    int peaks_reached = 0;
+    
 
     while (1) {
 
