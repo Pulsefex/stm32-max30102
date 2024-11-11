@@ -183,7 +183,6 @@ MAX30102_Status_t GetHeartRate(I2C_HandleTypeDef *hi2c, float *heart_rate, int n
     uint32_t curr_time = 0;
     
 
-    while (1) {
 
 
         // Ensure ReadFIFO is functioning properly by reading red and infrared data from it.
@@ -218,7 +217,5 @@ MAX30102_Status_t GetHeartRate(I2C_HandleTypeDef *hi2c, float *heart_rate, int n
             peak_interval_sum = 0; 
             peaks_reached = 0;         
         }
-    }
-
     return MAX30102_OK; // Return if loop is working properly
 }
