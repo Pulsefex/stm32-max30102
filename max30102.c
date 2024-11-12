@@ -1,63 +1,87 @@
 //Leroy,MameMore,Connor,Nicole,Justin
+
 #include <max30102.h>
 #include <stdio.h>
 
 MAX30102_Status_t MAX30102_Init(I2C_HandleTypeDef *hi2c)
 {
-    __uint8_t data;
+    uint8_t data;
 
-    //set bit 6 to 1; this software resets the sensor
-    data = 0x40; //0100000
-
-    if (MAX30102_WriteRegister(hi2c,
-                               MAX30102_REG_MODE_CONFIG,
-                               data) != MAX30102_OK)
+    // Step 1: Software reset the device
+    // Setting bit 6 (RESET) in the MODE_CONFIG register triggers a reset. The sensor will reset all configuration,
+    // threshold, and data registers to their power-on-state. The RESET bit will clear automatically once the reset completes.
+    data = 0x40; // 0b01000000
+    if (MAX30102_WriteRegister(hi2c, MAX30102_REG_MODE_CONFIG, data) != MAX30102_OK)
     {
         return MAX30102_ERROR;
     }
 
+    // Wait for reset to complete
+    // The datasheet advises polling the RESET bit in the MODE_CONFIG register to check when it clears (indicating reset completion).
     do
     {
-        if (MAX30102_ReadRegister(hi2c,
-                                  MAX30102_REG_MODE_CONFIG,
-                                  &data) != MAX30102_OK)
+        if (MAX30102_ReadRegister(hi2c, MAX30102_REG_MODE_CONFIG, &data) != MAX30102_OK)
         {
             return MAX30102_ERROR;
         }
-    } while (data & 0x40); // bitwise check
+    } while (data & 0x40);  // Keep checking until RESET bit clears
 
-    data = 0x40; // enable FIFO almost full interrupt (bit 6)
-    if (MAX30102_WriteRegister(hi2c,
-                               MAX30102_REG_INTR_ENABLE_1,
-                               data) != MAX30102_OK)
+    // Step 2: Enable new data interrupt
+    // Setting bit 6 in the INTERRUPT_ENABLE_1 register enables the "new FIFO data ready" interrupt.
+    // This interrupt is triggered when new data is available in the FIFO, allowing the main program to know
+    // when to read from the FIFO.
+    data = 0x40; // Enable new data ready interrupt (bit 6)
+    if (MAX30102_WriteRegister(hi2c, MAX30102_REG_INTR_ENABLE_1, data) != MAX30102_OK)
     {
         return MAX30102_ERROR;
     }
 
-    /* 18-bit ADC resolution (SPO2_ADC_RGE = 3) */
-    /* 50 samples per second (SPO2_SR = 2) */
-    /* 411 μs LED pulse width (LED_PW = 3)  */
-    /* Combined as 0x63 for the SPO2_CONFIG register */
-
-    data = 0x63; //01100011
-    if (MAX30102_WriteRegister(hi2c,
-                               MAX30102_REG_SPO2_CONFIG,
-                               data) != MAX30102_OK)
+    // Step 3: Configure the SPO2 settings
+    // This step configures ADC resolution, sample rate, and LED pulse width in the SPO2_CONFIG register.
+    // - Bits [5:4] (SPO2_ADC_RGE) set the ADC range. Here, we use a range of 16384, providing maximum sensitivity.
+    // - Bits [3:2] (SPO2_SR) set the sample rate to 50 samples per second, per the application requirements.
+    // - Bits [1:0] (LED_PW) set LED pulse width to 411 µs, maximizing the signal strength.
+    data = 0x63; // 0b01100011 for 16384 ADC range, 50 samples per second, 411 µs pulse width
+    if (MAX30102_WriteRegister(hi2c, MAX30102_REG_SPO2_CONFIG, data) != MAX30102_OK)
     {
         return MAX30102_ERROR;
     }
 
-    // initial LED pulse amplitudes
-    data = 0x24;
-    if (MAX30102_WriteRegister(hi2c,
-                               MAX30102_REG_LED1_PA,
-                               data) != MAX30102_OK)
+    // Step 4: Set initial LED pulse amplitude
+    // The LED pulse amplitude controls the brightness of the Red and IR LEDs, affecting the strength of the signals reflected back.
+    // Here, we set an initial amplitude of 0x47 for both LED channels to ensure a strong signal.
+    data = 0x47;  // Initial brightness level for Red and IR LEDs
+    if (MAX30102_WriteRegister(hi2c, MAX30102_REG_LED1_PA, data) != MAX30102_OK)
     {
         return MAX30102_ERROR;
     }
-    if (MAX30102_WriteRegister(hi2c,
-                               MAX30102_REG_LED2_PA,
-                               data) != MAX30102_OK)
+    if (MAX30102_WriteRegister(hi2c, MAX30102_REG_LED2_PA, data) != MAX30102_OK)
+    {
+        return MAX30102_ERROR;
+    }
+
+    // Step 5: Clear FIFO pointers
+    // The datasheet advises clearing the FIFO pointers before entering SpO2 or Heart Rate mode. This is done
+    // by setting the FIFO_WR_PTR, OVF_COUNTER, and FIFO_RD_PTR registers to 0x00 to ensure a known state.
+    data = 0;
+    if (MAX30102_WriteRegister(hi2c, MAX30102_REG_FIFO_WR_PTR, data) != MAX30102_OK)
+    {
+        return MAX30102_ERROR;
+    }
+    if (MAX30102_WriteRegister(hi2c, MAX30102_REG_OVF_COUNTER, data) != MAX30102_OK)
+    {
+        return MAX30102_ERROR;
+    }
+    if (MAX30102_WriteRegister(hi2c, MAX30102_REG_FIFO_RD_PTR, data) != MAX30102_OK)
+    {
+        return MAX30102_ERROR;
+    }
+
+    // Step 6: Set SPO2 mode
+    // To enter SpO2 mode, configure the MODE_CONFIG register with 0x03. This mode allows the sensor to collect data
+    // for Red and IR LEDs, which are used for SpO2 and heart rate calculations.
+    data = 0x03;  // 0b00000011 to set SpO2 mode
+    if (MAX30102_WriteRegister(hi2c, MAX30102_REG_MODE_CONFIG, data) != MAX30102_OK)
     {
         return MAX30102_ERROR;
     }
